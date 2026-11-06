@@ -42,4 +42,75 @@ if(document.readyState==='complete') schedule();
 else window.addEventListener('load',schedule,{once:true});
 // The label overlay stays fixed to each annotation; plot dragging remains enabled on the chart.
 })();
-</script></body></html>
+</script>
+<style>
+#frozen-time-axis {position:fixed;left:0;right:0;bottom:0;height:66px;z-index:90;background:rgba(251,252,254,.97);border-top:1px solid #cbd5e1;box-shadow:0 -4px 16px rgba(30,45,70,.08);pointer-events:none;display:none;font-family:Merriweather,Georgia,serif;color:#233b59}
+#frozen-time-axis .tick {position:absolute;top:7px;transform:translateX(-50%);font-size:11px;text-align:center;white-space:nowrap;line-height:1.45}
+#frozen-time-axis .year {position:absolute;top:38px;text-align:center;font-size:11px;font-weight:bold}
+#frozen-time-axis .axis-caption {position:absolute;left:12px;top:44px;font-size:10px;color:#67758a}
+</style>
+<script>
+(function(){
+ const plot=document.querySelector('.js-plotly-plot');
+ if(!plot) return;
+ const bar=document.createElement('div'); bar.id='frozen-time-axis';
+ bar.setAttribute('aria-label','Sticky month and year timeline');
+ document.body.appendChild(bar);
+ const monthNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+ let queued=false;
+ function update(){
+   queued=false;
+   const layout=plot._fullLayout, rect=plot.getBoundingClientRect();
+   if(!layout || !layout.xaxis){bar.style.display='none';return;}
+   const axis=layout.xaxis;
+   // Show only when the actual bottom axis is beneath the viewport and the plot is visible.
+   const show=rect.top < innerHeight-80 && rect.bottom > innerHeight+45;
+   bar.style.display=show?'block':'none';
+   if(!show)return;
+   bar.replaceChildren();
+   const a=Date.parse(axis.range[0]),b=Date.parse(axis.range[1]);
+   if(!Number.isFinite(a)||!Number.isFinite(b)||a===b)return;
+   const left=rect.left+axis._offset,width=axis._length;
+   const px=t=>left+(t-a)/(b-a)*width;
+   const min=Math.min(a,b),max=Math.max(a,b);
+   const d=new Date(min);let y=d.getUTCFullYear(),m=d.getUTCMonth();
+   let plotted=0;
+   while(plotted++<250){
+     const t=Date.UTC(y,m,1);
+     if(t>max)break;
+     if(t>=min){
+       const x=px(t);
+       if(x>-35 && x<innerWidth+35){
+         const tick=document.createElement('div');tick.className='tick';
+         tick.style.left=x+'px';
+         tick.textContent=monthNames[m];
+         bar.appendChild(tick);
+       }
+     }
+     m++; if(m===12){m=0;y++;}
+   }
+   const y0=new Date(min).getUTCFullYear(),y1=new Date(max).getUTCFullYear();
+   for(let yr=y0;yr<=y1 && yr<y0+15;yr++){
+     const from=Math.max(min,Date.UTC(yr,0,1)),to=Math.min(max,Date.UTC(yr+1,0,1));
+     if(to<=from)continue;
+     const x1=px(from),x2=px(to);
+     const L=Math.max(0,Math.min(x1,x2)),R=Math.min(innerWidth,Math.max(x1,x2));
+     if(R-L<45)continue;
+     const el=document.createElement('div');el.className='year';
+     el.style.left=L+'px';el.style.width=(R-L)+'px';el.textContent=String(yr);
+     bar.appendChild(el);
+   }
+   const caption=document.createElement('div');caption.className='axis-caption';
+   caption.textContent='TIMELINE';
+   bar.appendChild(caption);
+ }
+ function schedule(){if(queued)return;queued=true;requestAnimationFrame(update);}
+ plot.on('plotly_relayout',schedule);
+ plot.on('plotly_afterplot',schedule);
+ window.addEventListener('scroll',schedule,{passive:true});
+ window.addEventListener('resize',schedule);
+ if(document.readyState==='complete')schedule();
+ else window.addEventListener('load',schedule,{once:true});
+})();
+</script>
+</body></html>
